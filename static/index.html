@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Legal Aid — Multi-Agent System</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0f1117;
+      --surface: #1a1d27;
+      --border:  #2d3148;
+      --text:    #e8eaf6;
+      --muted:   #7b82a8;
+      --accent:  #4f8ef7;
+      --green:   #34d399;
+      --amber:   #fbbf24;
+      --purple:  #a78bfa;
+      --pink:    #f472b6;
+      --red:     #f87171;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── TOP BAR ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .logo-icon {
+      width: 32px; height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 16px; color: #fff;
+    }
+    header h1 { font-size: 16px; font-weight: 700; }
+    header span { font-size: 12px; color: var(--muted); margin-left: 4px; }
+    .header-pill {
+      margin-left: auto;
+      background: #1a2a1a;
+      border: 1px solid #34d399;
+      color: var(--green);
+      border-radius: 20px;
+      padding: 3px 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    /* ── MAIN LAYOUT ── */
+    .app {
+      display: grid;
+      grid-template-columns: 260px 1fr 280px;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── LEFT SIDEBAR – Agent Status ── */
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      overflow-y: auto;
+    }
+    .sidebar-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .agent-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .agent-card.active  { border-color: var(--accent); }
+    .agent-card.done    { border-color: var(--green); }
+    .agent-card.running { border-color: var(--amber); }
+    .agent-row { display: flex; align-items: center; gap: 8px; }
+    .agent-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+    .agent-card.done    .agent-dot { background: var(--green); }
+    .agent-card.running .agent-dot { background: var(--amber); animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100%{ opacity:1 } 50%{ opacity:0.3 } }
+    .agent-name { font-weight: 600; font-size: 13px; }
+    .agent-role { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .agent-badge {
+      margin-left: auto;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 10px;
+      background: var(--border);
+      color: var(--muted);
+    }
+    .agent-card.done    .agent-badge { background: #1a2a1a; color: var(--green); }
+    .agent-card.running .agent-badge { background: #2a2210; color: var(--amber); }
+
+    /* ── CENTER – Chat ── */
+    .chat-area {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .msg { display: flex; gap: 10px; max-width: 100%; }
+    .msg.user { flex-direction: row-reverse; }
+    .avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; flex-shrink: 0;
+    }
+    .avatar.user-av    { background: var(--accent); color: #fff; }
+    .avatar.system-av  { background: var(--purple); color: #fff; }
+    .avatar.intake-av  { background: #1e3a5f; color: var(--accent); border: 1px solid var(--accent); }
+    .avatar.research-av{ background: #1a2e1a; color: var(--green); border: 1px solid var(--green); }
+    .avatar.document-av{ background: #2e1a2e; color: var(--purple); border: 1px solid var(--purple); }
+    .avatar.advisor-av { background: #2e1a1e; color: var(--pink); border: 1px solid var(--pink); }
+
+    .bubble {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      max-width: calc(100% - 50px);
+      font-size: 13.5px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .msg.user .bubble {
+      background: #1a2a45;
+      border-color: #2a4a6f;
+    }
+    .bubble-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 4px;
+    }
+    .intake-label   { color: var(--accent); }
+    .research-label { color: var(--green); }
+    .document-label { color: var(--purple); }
+    .advisor-label  { color: var(--pink); }
+    .system-label   { color: var(--muted); }
+
+    .typing-dots span {
+      display: inline-block;
+      width: 6px; height: 6px;
+      background: var(--muted);
+      border-radius: 50%;
+      margin: 0 2px;
+      animation: bounce 1.2s infinite;
+    }
+    .typing-dots span:nth-child(2){ animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3){ animation-delay: 0.4s; }
+    @keyframes bounce { 0%,80%,100%{ transform:translateY(0) } 40%{ transform:translateY(-6px) } }
+
+    /* ── INPUT BAR ── */
+    .input-bar {
+      border-top: 1px solid var(--border);
+      padding: 14px 20px;
+      background: var(--surface);
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+    textarea {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 13.5px;
+      line-height: 1.5;
+      padding: 10px 14px;
+      resize: none;
+      min-height: 44px;
+      max-height: 120px;
+      outline: none;
+    }
+    textarea:focus { border-color: var(--accent); }
+    textarea::placeholder { color: var(--muted); }
+    .send-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      height: 44px;
+      white-space: nowrap;
+    }
+    .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── MODE TOGGLE ── */
+    .mode-bar {
+      padding: 10px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 6px;
+      background: var(--surface);
+    }
+    .mode-btn {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .mode-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    /* ── RIGHT PANEL – Output View ── */
+    .right-panel {
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+    }
+    .panel-tab {
+      flex: 1;
+      padding: 10px 0;
+      font-size: 11px;
+      font-weight: 600;
+      text-align: center;
+      cursor: pointer;
+      color: var(--muted);
+      border-bottom: 2px solid transparent;
+    }
+    .panel-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+    .panel-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px;
+      font-size: 12.5px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      color: var(--text);
+    }
+    .panel-placeholder {
+      color: var(--muted);
+      font-style: italic;
+      text-align: center;
+      margin-top: 40px;
+      font-size: 12px;
+    }
+
+    /* quick suggestions */
+    .suggestions {
+      padding: 12px 20px 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .sug-btn {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 16px;
+      padding: 5px 12px;
+      font-size: 11.5px;
+      cursor: pointer;
+    }
+    .sug-btn:hover { border-color: var(--accent); color: var(--text); }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-icon">⚖</div>
+  <h1>AI Legal Aid</h1>
+  <span>Multi-Agent System · IBM Granite-4</span>
+  <div class="header-pill">● Live</div>
+</header>
+
+<div class="app">
+
+  <!-- LEFT: Agent Status Panel -->
+  <aside class="sidebar">
+    <div class="sidebar-title">Agent Pipeline</div>
+
+    <div class="agent-card" id="card-intake">
+      <div class="agent-row">
+        <div class="agent-dot"></div>
+        <div>
+          <div class="agent-name">Intake Agent</div>
+          <div class="agent-role">Gathers facts & situation</div>
+        </div>
+        <div class="agent-badge">IDLE</div>
+      </div>
+    </div>
+
+    <div class="agent-card" id="card-research">
+      <div class="agent-row">
+        <div class="agent-dot"></div>
+        <div>
+          <div class="agent-name">Research Agent</div>
+          <div class="agent-role">Laws, rights & statutes</div>
+        </div>
+        <div class="agent-badge">IDLE</div>
+      </div>
+    </div>
+
+    <div class="agent-card" id="card-document">
+      <div class="agent-row">
+        <div class="agent-dot"></div>
+        <div>
+          <div class="agent-name">Document Agent</div>
+          <div class="agent-role">Drafts & templates</div>
+        </div>
+        <div class="agent-badge">IDLE</div>
+      </div>
+    </div>
+
+    <div class="agent-card" id="card-advisor">
+      <div class="agent-row">
+        <div class="agent-dot"></div>
+        <div>
+          <div class="agent-name">Advisor Agent</div>
+          <div class="agent-role">Final action plan</div>
+        </div>
+        <div class="agent-badge">IDLE</div>
+      </div>
+    </div>
+
+    <div style="margin-top:auto; padding-top:16px; border-top:1px solid var(--border); font-size:11px; color:var(--muted);">
+      Powered by IBM WatsonX<br>
+      Model: <strong style="color:var(--text)">granite-4-h-small</strong>
+    </div>
+  </aside>
+
+  <!-- CENTER: Chat -->
+  <main class="chat-area">
+    <div class="mode-bar">
+      <button class="mode-btn active" data-mode="full">Full Pipeline</button>
+      <button class="mode-btn" data-mode="intake">Intake Only</button>
+      <button class="mode-btn" data-mode="research">Research Only</button>
+      <button class="mode-btn" data-mode="document">Document Only</button>
+      <button class="mode-btn" data-mode="advisor">Advisor Only</button>
+    </div>
+
+    <div class="suggestions" id="suggestions">
+      <button class="sug-btn">My landlord is evicting me unfairly</button>
+      <button class="sug-btn">My employer hasn't paid me for 3 weeks</button>
+      <button class="sug-btn">I need help with a child custody dispute</button>
+      <button class="sug-btn">I received a debt collection lawsuit</button>
+      <button class="sug-btn">My work visa is expiring soon</button>
+    </div>
+
+    <div class="messages" id="messages">
+      <div class="msg">
+        <div class="avatar system-av">AI</div>
+        <div class="bubble">
+          <div class="bubble-label system-label">Legal Aid System</div>
+          Welcome to AI Legal Aid. Describe your legal situation and our multi-agent system will analyse it, research applicable laws, prepare relevant documents, and give you an action plan — all powered by IBM Granite-4.
+
+<strong>You can ask about:</strong> housing, employment, family law, immigration, criminal defence, debt, civil rights, and more.
+        </div>
+      </div>
+    </div>
+
+    <div class="input-bar">
+      <textarea id="userInput" placeholder="Describe your legal situation…" rows="1"></textarea>
+      <button class="send-btn" id="sendBtn">Send</button>
+    </div>
+  </main>
+
+  <!-- RIGHT: Output Viewer -->
+  <aside class="right-panel">
+    <div class="panel-tabs">
+      <div class="panel-tab active" data-tab="intake">Intake</div>
+      <div class="panel-tab" data-tab="research">Research</div>
+      <div class="panel-tab" data-tab="document">Docs</div>
+      <div class="panel-tab" data-tab="advisor">Plan</div>
+    </div>
+    <div class="panel-content" id="panel-content">
+      <div class="panel-placeholder">Run the pipeline to see agent outputs here.</div>
+    </div>
+  </aside>
+</div>
+
+<script>
+  const messagesEl = document.getElementById('messages');
+  const inputEl    = document.getElementById('userInput');
+  const sendBtn    = document.getElementById('sendBtn');
+  const sugEl      = document.getElementById('suggestions');
+
+  const agentColors = {
+    intake:   { cls: 'intake',   label: '🔵 Intake Agent',    icon: 'IN' },
+    research: { cls: 'research', label: '🟢 Research Agent',  icon: 'RE' },
+    document: { cls: 'document', label: '🟣 Document Agent',  icon: 'DO' },
+    advisor:  { cls: 'advisor',  label: '🩷 Advisor Agent',   icon: 'AD' },
+    system:   { cls: 'system',   label: 'System',             icon: 'SY' },
+  };
+
+  const agentOutputs = { intake: '', research: '', document: '', advisor: '' };
+  let currentTab = 'intake';
+  let currentMode = 'full';
+  let isRunning = false;
+
+  // ── Tab switching ──
+  document.querySelectorAll('.panel-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      currentTab = tab.dataset.tab;
+      renderPanel();
+    });
+  });
+
+  function renderPanel() {
+    const pc = document.getElementById('panel-content');
+    const txt = agentOutputs[currentTab];
+    if (!txt) {
+      pc.innerHTML = '<div class="panel-placeholder">No output yet for this agent.</div>';
+    } else {
+      pc.textContent = txt;
+    }
+  }
+
+  // ── Mode switching ──
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentMode = btn.dataset.mode;
+    });
+  });
+
+  // ── Suggestion chips ──
+  sugEl.querySelectorAll('.sug-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      inputEl.value = btn.textContent;
+      sugEl.style.display = 'none';
+      sendMessage();
+    });
+  });
+
+  // ── Auto-resize textarea ──
+  inputEl.addEventListener('input', () => {
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+  });
+
+  inputEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+
+  sendBtn.addEventListener('click', sendMessage);
+
+  // ── Helpers ──
+  function scrollBottom() {
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function addBubble(agentKey, textContent) {
+    const info = agentColors[agentKey] || agentColors.system;
+    const msg  = document.createElement('div');
+    msg.className = 'msg';
+    msg.innerHTML = `
+      <div class="avatar ${info.cls}-av">${info.icon}</div>
+      <div class="bubble">
+        <div class="bubble-label ${info.cls}-label">${info.label}</div>
+        <div class="bubble-body">${textContent}</div>
+      </div>`;
+    messagesEl.appendChild(msg);
+    scrollBottom();
+    return msg.querySelector('.bubble-body');
+  }
+
+  function addUserBubble(text) {
+    const msg = document.createElement('div');
+    msg.className = 'msg user';
+    msg.innerHTML = `
+      <div class="avatar user-av">U</div>
+      <div class="bubble">${escHtml(text)}</div>`;
+    messagesEl.appendChild(msg);
+    scrollBottom();
+  }
+
+  function addTyping(agentKey) {
+    const info = agentColors[agentKey] || agentColors.system;
+    const msg  = document.createElement('div');
+    msg.className = 'msg typing-msg';
+    msg.innerHTML = `
+      <div class="avatar ${info.cls}-av">${info.icon}</div>
+      <div class="bubble">
+        <div class="bubble-label ${info.cls}-label">${info.label}</div>
+        <div class="typing-dots"><span></span><span></span><span></span></div>
+      </div>`;
+    messagesEl.appendChild(msg);
+    scrollBottom();
+    return msg;
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function setAgentStatus(agent, status) {
+    const card = document.getElementById('card-' + agent);
+    if (!card) return;
+    card.classList.remove('active','done','running');
+    card.classList.add(status);
+    const badge = card.querySelector('.agent-badge');
+    badge.textContent = status === 'running' ? 'RUNNING' : status === 'done' ? 'DONE' : 'IDLE';
+  }
+
+  function resetAgentStatus() {
+    ['intake','research','document','advisor'].forEach(a => setAgentStatus(a,''));
+  }
+
+  // ── Main send logic ──
+  async function sendMessage() {
+    if (isRunning) return;
+    const text = inputEl.value.trim();
+    if (!text) return;
+
+    isRunning = true;
+    sendBtn.disabled = true;
+    sugEl.style.display = 'none';
+    inputEl.value = '';
+    inputEl.style.height = '';
+
+    addUserBubble(text);
+    resetAgentStatus();
+    Object.keys(agentOutputs).forEach(k => agentOutputs[k] = '');
+    renderPanel();
+
+    const messages = [{ role: 'user', content: text }];
+
+    if (currentMode !== 'full') {
+      // Single agent mode
+      try {
+        const agentKey = currentMode;
+        const typing = addTyping(agentKey);
+        setAgentStatus(agentKey, 'running');
+        const resp = await fetch('/api/chat/single', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages, mode: currentMode }),
+        });
+        const data = await resp.json();
+        typing.remove();
+        setAgentStatus(agentKey, 'done');
+        agentOutputs[agentKey] = data.reply;
+        addBubble(agentKey, escHtml(data.reply));
+        currentTab = agentKey;
+        document.querySelectorAll('.panel-tab').forEach(t => {
+          t.classList.toggle('active', t.dataset.tab === agentKey);
+        });
+        renderPanel();
+      } catch (err) {
+        addBubble('system', 'Error: ' + err.message);
+      }
+      isRunning = false;
+      sendBtn.disabled = false;
+      return;
+    }
+
+    // Full pipeline via SSE
+    const typingMap = {};
+    const bodyMap   = {};
+
+    try {
+      const response = await fetch('/api/chat/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages, mode: 'full' }),
+      });
+
+      const reader  = response.body.getReader();
+      const decoder = new TextDecoder();
+      let   buffer  = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          if (!line.startsWith('data:')) continue;
+          const raw = line.slice(5).trim();
+          if (!raw || raw === '[DONE]') continue;
+
+          let evt;
+          try { evt = JSON.parse(raw); } catch { continue; }
+
+          const { agent, text, done: agentDone } = evt;
+          if (agent === 'system') continue;
+
+          if (!agentDone && !text) {
+            // Kick-off event
+            if (typingMap[agent]) typingMap[agent].remove();
+            typingMap[agent] = addTyping(agent);
+            setAgentStatus(agent, 'running');
+
+          } else if (agentDone && text) {
+            // Final response
+            if (typingMap[agent]) { typingMap[agent].remove(); delete typingMap[agent]; }
+            setAgentStatus(agent, 'done');
+            agentOutputs[agent] = text;
+            bodyMap[agent] = addBubble(agent, escHtml(text));
+            if (agent === currentTab) renderPanel();
+            // Auto-switch panel to latest done agent
+            currentTab = agent;
+            document.querySelectorAll('.panel-tab').forEach(t => {
+              t.classList.toggle('active', t.dataset.tab === agent);
+            });
+            renderPanel();
+          }
+        }
+      }
+    } catch (err) {
+      addBubble('system', 'Connection error: ' + err.message);
+    }
+
+    isRunning = false;
+    sendBtn.disabled = false;
+  }
+</script>
+</body>
+</html>
